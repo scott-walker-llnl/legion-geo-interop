@@ -5,5 +5,4 @@ geopmsrun	-N2 -n2 \
 			--geopm-report=legion_daxpy_governed_report \
 			--geopm-trace=legion_daxpy_governed_trace \
 			--geopm-policy=balanced_policy.json \
-			-- ./a.out
-			# -- ./daxpy_mpi
+			-- ./daxpy_mpi 115.0 1

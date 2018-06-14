@@ -31,11 +31,26 @@ _EXTERN_C_ int PMPI_Init(int *argc, char ***argv);
 _EXTERN_C_ int MPI_Init(int *argc, char ***argv) {
     int _wrap_py_return_val = 0;
 
+	printf("INTERCEPTED PRE INIT\n");
     _wrap_py_return_val = PMPI_Init(argc, argv);
 	printf("INTERCEPTED INIT\n");
 
     return _wrap_py_return_val;
 }
+
+_EXTERN_C_ int PMPI_Init_thread(int *argc, char ***argv, int required, int *provided);
+_EXTERN_C_ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided) {
+    int _wrap_py_return_val = 0;
+
+	printf("INTERCEPTED PRE THREAD INIT\n");
+    _wrap_py_return_val = PMPI_Init_thread(argc, argv, required, provided);
+	// printf("INTERCEPTED: provided %d\n", *provided);
+	// *provided = 3;
+	printf("INTERCEPTED POST THREAD INIT\n");
+
+    return _wrap_py_return_val;
+}
+
 
 _EXTERN_C_ int PMPI_Finalize();
 _EXTERN_C_ int MPI_Finalize() {

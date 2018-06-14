@@ -38,11 +38,12 @@
 #include <sys/time.h>
 #include <ctime>
 #include <unistd.h>
+// Need MPI header file
 #ifdef GEO
 #include <geopm.h>
 #endif
-// Need MPI header file
-#include "mpi.h"
+// #include "mpi.h"
+#include <mpi.h>
 
 #include "legion.h"
 #include "msr_core.h"
@@ -141,6 +142,7 @@ void init_field_task(const Task *task,
 
 	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	assert(task->arglen == sizeof(uint64_t));
 	uint64_t rid = *((uint64_t*)task->args);
 	int err = geopm_prof_enter(rid);
 	if (err)
@@ -182,7 +184,6 @@ void daxpy_task(const Task *task,
 {
 	assert(regions.size() == 2);
 	assert(task->regions.size() == 2);
-	assert(task->arglen == sizeof(double));
 
 	int rank = -1;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -190,6 +191,7 @@ void daxpy_task(const Task *task,
 	
 	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	assert(task->arglen == sizeof(struct daxpy_arg));
 	int err = 0;
 	struct daxpy_arg darg = *((daxpy_arg*)task->args);
 	err = geopm_prof_enter(darg.rid);
@@ -199,7 +201,7 @@ void daxpy_task(const Task *task,
 		fprintf(stderr, "Geo error in daxpy task\n");
 	}
 #else
-	handshake.legion_wait_on_mpi();
+	assert(task->arglen == sizeof(double));
 	const double alpha = *((const double*)task->args);
 #ifdef LEAF_COMM
 	// you don't need handshakes for this, but not sure what that means for correctness
@@ -223,6 +225,7 @@ void daxpy_task(const Task *task,
 	}
 #endif
 #endif
+	handshake.legion_wait_on_mpi();
 	// const int point = task->index_point.point_data[0];
 
 	const FieldAccessor<READ_ONLY,double,1> acc_x(regions[0], FID_X);
@@ -263,10 +266,10 @@ void check_task(const Task *task,
 {
 	assert(regions.size() == 2);
 	assert(task->regions.size() == 2);
-	assert(task->arglen == sizeof(double));
 
 	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	assert(task->arglen == sizeof(struct daxpy_arg));
 	struct daxpy_arg darg = *((daxpy_arg*)task->args);
 	int err = geopm_prof_enter(darg.rid);
 	const double alpha = darg.alpha;
@@ -275,9 +278,10 @@ void check_task(const Task *task,
 		fprintf(stderr, "Geo error in check task\n");
 	}
 #else
-	handshake.legion_wait_on_mpi();
+	assert(task->arglen == sizeof(double));
 	const double alpha = *((const double*)task->args);
 #endif
+	handshake.legion_wait_on_mpi();
 
 	const FieldAccessor<READ_ONLY,double,1> acc_x(regions[0], FID_X);
 	const FieldAccessor<READ_ONLY,double,1> acc_y(regions[0], FID_Y);
@@ -379,6 +383,10 @@ void mpi_interop_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
 	}
+	printf("rank %d legion task rid %llu\n", rank, legion_rid);
+	printf("rank %d init task rid %llu\n", rank, init_rid);
+	printf("rank %d daxpy task rid %llu\n", rank, daxpy_rid);
+	printf("rank %d check task rid %llu\n", rank, check_rid);
 #endif
 
 	handshake.legion_wait_on_mpi();
@@ -639,6 +647,7 @@ void top_level_task(const Task *task,
 
 int main(int argc, char **argv)
 {
+	printf("running legion\n");
 #ifdef GASNET_CONDUIT_MPI
 	// The GASNet MPI conduit requires special start-up
 	// in order to handle MPI calls from multiple threads
@@ -654,7 +663,9 @@ int main(int argc, char **argv)
 	assert(provided == MPI_THREAD_MULTIPLE);
 #else
 	// Perform MPI start-up like normal for most GASNet conduits
+	printf("mpi init\n");
 	MPI_Init(&argc, &argv);
+	printf("waiting\n");
 #endif
 
 	if (argc < 3)

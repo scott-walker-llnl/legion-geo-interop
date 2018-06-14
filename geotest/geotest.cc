@@ -1,8 +1,10 @@
-// #include "mpi.h"
-#include <mpi.h>
+#include "../mpi.h"
+// #include <mpi.h>
 #include <geopm.h>
 #include <iostream>
 #include <cstdlib>
+
+// #define GEO
 
 #define TASK_NAME_SIZE 256
 
@@ -21,6 +23,7 @@ int main(int argc, char **argv)
 		std::cout << "rank " << rank << std::endl;
 	}
 
+#ifdef GEO
 	// Geo initq
 	uint64_t t1rid;
 	uint64_t t2rid;
@@ -39,6 +42,7 @@ int main(int argc, char **argv)
 	}
 	printf("rank %d has t1rid %llu\n", rank, t1rid);
 	printf("rank %d has t1rid %llu\n", rank, t2rid);
+#endif
 
 	if (rank == 0)
 	{
