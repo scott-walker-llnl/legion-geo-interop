@@ -1,10 +1,10 @@
-#include "../mpi.h"
-// #include <mpi.h>
+// #include "../mpi.h"
+#include <mpi.h>
 #include <geopm.h>
 #include <iostream>
 #include <cstdlib>
 
-// #define GEO
+#define GEO
 
 #define TASK_NAME_SIZE 256
 
@@ -41,12 +41,12 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Geo error init\n");
 	}
 	printf("rank %d has t1rid %llu\n", rank, t1rid);
-	printf("rank %d has t1rid %llu\n", rank, t2rid);
+	printf("rank %d has t2rid %llu\n", rank, t2rid);
 #endif
 
 	if (rank == 0)
 	{
-		err = geopm_prof_enter(t1rid);
+		int err = geopm_prof_enter(t1rid);
 		if (err)
 		{
 			fprintf(stderr, "Geo error  %d\n", rank);

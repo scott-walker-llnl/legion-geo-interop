@@ -351,28 +351,28 @@ void mpi_interop_task(const Task *task,
 	uint64_t check_rid;
 	int err;
 	char daxpy_str[TASK_NAME_SIZE];
-	snprintf(daxpy_str, TASK_NAME_SIZE, "daxpy_child_task_%llu", task->index_point[0]);
+	snprintf(daxpy_str, TASK_NAME_SIZE, "daxpy_child_task");
 	err = geopm_prof_region(daxpy_str, GEOPM_REGION_HINT_COMPUTE, &daxpy_rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
 	}
 	char init_str[TASK_NAME_SIZE];
-	snprintf(init_str, TASK_NAME_SIZE, "init_child_task_%llu", task->index_point[0]);
+	snprintf(init_str, TASK_NAME_SIZE, "init_child_task");
 	err = geopm_prof_region(init_str, GEOPM_REGION_HINT_MEMORY, &init_rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
 	}
 	char check_str[TASK_NAME_SIZE];
-	snprintf(check_str, TASK_NAME_SIZE, "check_child_task_%llu", task->index_point[0]);
+	snprintf(check_str, TASK_NAME_SIZE, "check_child_task");
 	err = geopm_prof_region(check_str, GEOPM_REGION_HINT_MEMORY, &check_rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
 	}
 	char legion_str[TASK_NAME_SIZE];
-	snprintf(legion_str, TASK_NAME_SIZE, "legion_child_task_%llu", task->index_point[0]);
+	snprintf(legion_str, TASK_NAME_SIZE, "legion_child_task");
 	err = geopm_prof_region(legion_str, GEOPM_REGION_HINT_COMPUTE, &legion_rid);
 	if (err)
 	{
@@ -697,7 +697,6 @@ int main(int argc, char **argv)
 	int partitions = size * atoi(argv[2]);
 	printf("There will be %d partitions\n", partitions);
 
-#ifndef GEO
 	uint64_t unit;
 	read_msr_by_coord(0, 0, 0, MSR_RAPL_POWER_UNIT, &unit);
 	uint64_t power_unit = unit & 0xF;
@@ -710,13 +709,14 @@ int main(int argc, char **argv)
 	unsigned eu = (unit >> 8) & 0x1F;
 	energy_unit = 1.0 / (0x1 << eu);
 
+#ifndef GEO
 	set_rapl(1, limit, pu, su, 0);
 	set_rapl(1, limit, pu, su, 1);
+#endif
 	uint64_t energy_s1_begin;
 	uint64_t energy_s2_begin;
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s1_begin);
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s2_begin);
-#endif
 
 	{
 		TaskVariantRegistrar top_level_registrar(TOP_LEVEL_TASK_ID);
@@ -825,6 +825,7 @@ int main(int argc, char **argv)
 #ifndef GEO
 	set_rapl(1, 115.0, pu, su, 0);
 	set_rapl(1, 115.0, pu, su, 1);
+#endif
 	uint64_t energy_s1_end;
 	uint64_t energy_s2_end;
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s1_end);
@@ -834,7 +835,6 @@ int main(int argc, char **argv)
 	double pows1 = (double) diffs1 * energy_unit / time;
 	double pows2 = (double) diffs2 * energy_unit / time;
 	printf("MPI rank %d power s1: %lf s2: %lf\n", rank, pows1, pows2);
-#endif
 
 	uint64_t aperf_end, mperf_end;
 	read_msr_by_coord(0, 0, 0, MSR_IA32_APERF, &aperf_end);
