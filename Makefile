@@ -37,7 +37,7 @@ INC_FLAGS	?=-I/g/g19/walker91/local/include -I/usr/tce/packages/mvapich2/mvapich
 CC_FLAGS	?=
 NVCC_FLAGS	?=
 GASNET_FLAGS	?=
-LD_FLAGS	?=-L/usr/tce/packages/mvapich2/mvapich2-2.3-gcc-4.9.3/lib -lmpi -L/g/g19/walker91/local/lib -lmsr -L$(LOCAL)/lib -lgeopm
+LD_FLAGS	?=-L/usr/tce/packages/mvapich2/mvapich2-2.3-gcc-4.9.3/lib -lmpi -L/g/g19/walker91/local/lib -lmsr
 
 ###########################################################################
 #
