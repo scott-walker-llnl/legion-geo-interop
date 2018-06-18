@@ -98,7 +98,7 @@ MPILegionHandshake handshake;
 // this example, but you can easily configure it
 // from command line arguments which get passed 
 // to both MPI and Legion
-const int total_iterations = 30;
+const int total_iterations = 10;
 
 void set_rapl(unsigned sec, double watts, double pu, double su, unsigned affinity)
 {
@@ -140,8 +140,8 @@ void init_field_task(const Task *task,
 	assert(task->regions.size() == 1);
 	assert(task->regions[0].privilege_fields.size() == 1);
 
-	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	handshake.legion_handoff_to_mpi();
 	assert(task->arglen == sizeof(uint64_t));
 	uint64_t rid = *((uint64_t*)task->args);
 	int err = geopm_prof_enter(rid);
@@ -149,8 +149,8 @@ void init_field_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in init task\n");
 	}
-#endif
 	handshake.legion_wait_on_mpi();
+#endif
 
 	FieldID fid = *(task->regions[0].privilege_fields.begin());
 	const int point = task->index_point.point_data[0];
@@ -167,15 +167,15 @@ void init_field_task(const Task *task,
 		acc[*pir] = drand48();
 	}
 
-	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	handshake.legion_handoff_to_mpi();
 	err = geopm_prof_exit(rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in init task\n");
 	}
-#endif
 	handshake.legion_wait_on_mpi();
+#endif
 }
 
 void daxpy_task(const Task *task,
@@ -187,10 +187,10 @@ void daxpy_task(const Task *task,
 
 	int rank = -1;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	printf("daxpy point task %d executing on rank %d\n", task->index_point.point_data[0], rank);
+	printf("daxpy task point %d executing on rank %d\n", task->index_point.point_data[0], rank);
 	
-	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	handshake.legion_handoff_to_mpi();
 	assert(task->arglen == sizeof(struct daxpy_arg));
 	int err = 0;
 	struct daxpy_arg darg = *((daxpy_arg*)task->args);
@@ -200,6 +200,7 @@ void daxpy_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in daxpy task\n");
 	}
+	handshake.legion_wait_on_mpi();
 #else
 	assert(task->arglen == sizeof(double));
 	const double alpha = *((const double*)task->args);
@@ -225,7 +226,6 @@ void daxpy_task(const Task *task,
 	}
 #endif
 #endif
-	handshake.legion_wait_on_mpi();
 	// const int point = task->index_point.point_data[0];
 
 	const FieldAccessor<READ_ONLY,double,1> acc_x(regions[0], FID_X);
@@ -249,15 +249,15 @@ void daxpy_task(const Task *task,
 		acc_z[*pir] = alpha * acc_x[*pir] + acc_y[*pir];
 	}
 
-	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	handshake.legion_handoff_to_mpi();
 	err = geopm_prof_exit(darg.rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in daxpy task\n");
 	}
-#endif
 	handshake.legion_wait_on_mpi();
+#endif
 }
 
 void check_task(const Task *task,
@@ -267,8 +267,8 @@ void check_task(const Task *task,
 	assert(regions.size() == 2);
 	assert(task->regions.size() == 2);
 
-	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	handshake.legion_handoff_to_mpi();
 	assert(task->arglen == sizeof(struct daxpy_arg));
 	struct daxpy_arg darg = *((daxpy_arg*)task->args);
 	int err = geopm_prof_enter(darg.rid);
@@ -277,11 +277,11 @@ void check_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in check task\n");
 	}
+	handshake.legion_wait_on_mpi();
 #else
 	assert(task->arglen == sizeof(double));
 	const double alpha = *((const double*)task->args);
 #endif
-	handshake.legion_wait_on_mpi();
 
 	const FieldAccessor<READ_ONLY,double,1> acc_x(regions[0], FID_X);
 	const FieldAccessor<READ_ONLY,double,1> acc_y(regions[0], FID_Y);
@@ -314,15 +314,15 @@ void check_task(const Task *task,
 	else
 		printf("FAILURE!\n");
 
-	handshake.legion_handoff_to_mpi();
 #ifdef GEO
+	handshake.legion_handoff_to_mpi();
 	err = geopm_prof_exit(darg.rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in check task\n");
 	}
-#endif
 	handshake.legion_wait_on_mpi();
+#endif
 }
 
 void mpi_interop_task(const Task *task, 
@@ -337,19 +337,17 @@ void mpi_interop_task(const Task *task,
 	}
 	printf("Hello from Legion MPI-Interop Task %lld (rank %d)\n", task->index_point[0], rank);
 
-	// struct mpi_int_arg marg = (*((struct mpi_int_arg *) task->args));
-	// int num_subregions = marg.size; 
-	// err = geopm_prof_enter(marg.rid);
-	// if (err)
-	// {
-	// 	fprintf(stderr, "Geo error in mpi interop task\n");
-	// }
 #ifdef GEO
 	uint64_t legion_rid;
 	uint64_t init_rid;
 	uint64_t daxpy_rid;
 	uint64_t check_rid;
 	int err;
+	err = geopm_prof_epoch();
+	if (err)
+	{
+		fprintf(stderr, "Geo error in mpi interop task\n");
+	}
 	char daxpy_str[TASK_NAME_SIZE];
 	snprintf(daxpy_str, TASK_NAME_SIZE, "daxpy_child_task");
 	err = geopm_prof_region(daxpy_str, GEOPM_REGION_HINT_COMPUTE, &daxpy_rid);
@@ -371,19 +369,19 @@ void mpi_interop_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
 	}
-	char legion_str[TASK_NAME_SIZE];
-	snprintf(legion_str, TASK_NAME_SIZE, "legion_child_task");
-	err = geopm_prof_region(legion_str, GEOPM_REGION_HINT_COMPUTE, &legion_rid);
-	if (err)
-	{
-		fprintf(stderr, "Geo error in mpi interop task\n");
-	}
-	err = geopm_prof_enter(legion_rid);
-	if (err)
-	{
-		fprintf(stderr, "Geo error in mpi interop task\n");
-	}
-	printf("rank %d legion task rid %llu\n", rank, legion_rid);
+	// char legion_str[TASK_NAME_SIZE];
+	// snprintf(legion_str, TASK_NAME_SIZE, "legion_child_task");
+	// err = geopm_prof_region(legion_str, GEOPM_REGION_HINT_COMPUTE, &legion_rid);
+	// if (err)
+	// {
+	// 	fprintf(stderr, "Geo error in mpi interop task\n");
+	// }
+	// err = geopm_prof_enter(legion_rid);
+	// if (err)
+	// {
+	// 	fprintf(stderr, "Geo error in mpi interop task\n");
+	// }
+	// printf("rank %d legion task rid %llu\n", rank, legion_rid);
 	printf("rank %d init task rid %llu\n", rank, init_rid);
 	printf("rank %d daxpy task rid %llu\n", rank, daxpy_rid);
 	printf("rank %d check task rid %llu\n", rank, check_rid);
@@ -411,7 +409,7 @@ void mpi_interop_task(const Task *task,
 
 		const InputArgs &command_args = Runtime::get_input_args();
 		int mult = atoi(command_args.argv[command_args.argc - 1]);
-		int num_elements = 0x1 << 20;
+		int num_elements = 0x1 << 23;
 		int num_subregions = 1;
 		if (mult > 0)
 		{
@@ -494,10 +492,10 @@ void mpi_interop_task(const Task *task,
 		const double alpha = drand48();
 #ifdef GEO
 		struct daxpy_arg darg;
-		IndexLauncher daxpy_launcher(DAXPY_TASK_ID, color_is,
-				TaskArgument(&darg, sizeof(struct daxpy_arg)), arg_map);
 		darg.alpha = alpha;
 		darg.rid = daxpy_rid;
+		IndexLauncher daxpy_launcher(DAXPY_TASK_ID, color_is,
+				TaskArgument(&darg, sizeof(struct daxpy_arg)), arg_map);
 #else
 		IndexLauncher daxpy_launcher(DAXPY_TASK_ID, color_is,
 				TaskArgument(&alpha, sizeof(double)), arg_map);
@@ -608,11 +606,11 @@ void mpi_interop_task(const Task *task,
 		// printf("rank %d complete\n", rank);
 	}
 #ifdef GEO
-	err = geopm_prof_exit(legion_rid);
-	if (err)
-	{
-		fprintf(stderr, "Geo error in mpi interop\n");
-	}
+	// err = geopm_prof_exit(legion_rid);
+	// if (err)
+	// {
+	// 	fprintf(stderr, "Geo error in mpi interop\n");
+	// }
 #endif
 }
 
@@ -694,9 +692,19 @@ int main(int argc, char **argv)
 	struct timeval t1;
 	gettimeofday(&t1, NULL);
 
-	int partitions = size * atoi(argv[2]);
+	int partitions = 1;
+	int mult = atoi(argv[2]);
+	if ( mult > 0)
+	{
+		partitions = size * mult;
+	}
+	else if (mult < 0)
+	{
+		partitions = size / (atoi(argv[2]) * -1);
+	}
 	printf("There will be %d partitions\n", partitions);
 
+	uint64_t rapl_bits;
 	uint64_t unit;
 	read_msr_by_coord(0, 0, 0, MSR_RAPL_POWER_UNIT, &unit);
 	uint64_t power_unit = unit & 0xF;
@@ -717,6 +725,8 @@ int main(int argc, char **argv)
 	uint64_t energy_s2_begin;
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s1_begin);
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s2_begin);
+	read_msr_by_coord(0, 0, 0, MSR_PKG_POWER_LIMIT, &rapl_bits);
+	printf("RAPL bits %llx\n", rapl_bits);
 
 	{
 		TaskVariantRegistrar top_level_registrar(TOP_LEVEL_TASK_ID);
@@ -784,7 +794,7 @@ int main(int argc, char **argv)
 
 		// DAXPY TASK handshakes
 		// one daxpy task executes per iteration
-		printf("rank %d handshake itr %d\n", rank, i);
+		// printf("rank %d handshake itr %d\n", rank, i);
 		handshake.mpi_wait_on_legion(); // geo prof begin exit
 		handshake.mpi_handoff_to_legion(); // geo prof begin enter
 		handshake.mpi_wait_on_legion(); // geo prof end exit
@@ -830,11 +840,13 @@ int main(int argc, char **argv)
 	uint64_t energy_s2_end;
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s1_end);
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s2_end);
+	read_msr_by_coord(0, 0, 0, MSR_PKG_POWER_LIMIT, &rapl_bits);
 	unsigned long diffs1 = energy_s1_end - energy_s1_begin;
 	unsigned long diffs2 = energy_s2_end - energy_s2_begin;
 	double pows1 = (double) diffs1 * energy_unit / time;
 	double pows2 = (double) diffs2 * energy_unit / time;
 	printf("MPI rank %d power s1: %lf s2: %lf\n", rank, pows1, pows2);
+	printf("RAPL bits %llx\n", rapl_bits);
 
 	uint64_t aperf_end, mperf_end;
 	read_msr_by_coord(0, 0, 0, MSR_IA32_APERF, &aperf_end);

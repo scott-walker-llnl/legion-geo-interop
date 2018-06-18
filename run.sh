@@ -1,4 +1,5 @@
 source tutorial_env.sh
+GEOPM_RM=SrunLauncher
 GEOPMPY_PKGDIR=$LOCAL/lib/python2.7/site-packages/geopmpy
 geopmsrun	-N2 -n2 \
 			--geopm-ctl=process \
