@@ -1,5 +1,6 @@
 source tutorial_env.sh
 GEOPMPY_PKGDIR=$LOCAL/lib/python2.7/site-packages/geopmpy
+GEOPM_RM=SrunLauncher
 geopmsrun	-N2 -n2 \
 			--geopm-ctl=process \
 			--geopm-report=legion_daxpy_governed_report \
