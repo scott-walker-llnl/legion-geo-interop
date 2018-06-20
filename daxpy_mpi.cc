@@ -63,6 +63,7 @@ enum TaskID
 	DAXPY_TASK_ID,
 	INIT_FIELD_TASK_ID,
 	CHECK_TASK_ID,
+	FINISH_TASK_ID,
 };
 
 enum
@@ -91,8 +92,6 @@ struct daxpy_arg
 // want but the common case is just to
 // have one per Legion-MPI rank pair
 MPILegionHandshake handshake;
-// MPILegionHandshake handshake;
-// MPILegionHandshake handshake;
 
 // Have a global static number of iterations for
 // this example, but you can easily configure it
@@ -132,6 +131,18 @@ void set_rapl(unsigned sec, double watts, double pu, double su, unsigned affinit
 	write_msr_by_coord(affinity, 0, 0, MSR_PKG_POWER_LIMIT, rapl);
 }
 
+void finish_task(const Task *task,
+		const std::vector<PhysicalRegion> &regions,
+		Context ctx, Runtime *runtime)
+{
+	int rank = -1;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	printf("Finish task execute on rank %d\n", rank);
+	fflush(stdout);
+	// handshake.legion_handoff_to_mpi();
+	MPI_Barrier(MPI_COMM_WORLD);
+}
+
 void init_field_task(const Task *task,
 			const std::vector<PhysicalRegion> &regions,
 			Context ctx, Runtime *runtime)
@@ -141,7 +152,7 @@ void init_field_task(const Task *task,
 	assert(task->regions[0].privilege_fields.size() == 1);
 
 #ifdef GEO
-	handshake.legion_handoff_to_mpi();
+	// handshake.legion_handoff_to_mpi();
 	assert(task->arglen == sizeof(uint64_t));
 	uint64_t rid = *((uint64_t*)task->args);
 	int err = geopm_prof_enter(rid);
@@ -149,7 +160,7 @@ void init_field_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in init task\n");
 	}
-	handshake.legion_wait_on_mpi();
+	// handshake.legion_wait_on_mpi();
 #endif
 
 	FieldID fid = *(task->regions[0].privilege_fields.begin());
@@ -168,13 +179,13 @@ void init_field_task(const Task *task,
 	}
 
 #ifdef GEO
-	handshake.legion_handoff_to_mpi();
+	// handshake.legion_handoff_to_mpi();
 	err = geopm_prof_exit(rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in init task\n");
 	}
-	handshake.legion_wait_on_mpi();
+	// handshake.legion_wait_on_mpi();
 #endif
 }
 
@@ -187,10 +198,11 @@ void daxpy_task(const Task *task,
 
 	int rank = -1;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	printf("daxpy task point %d executing on rank %d\n", task->index_point.point_data[0], rank);
+	printf("daxpy task point %d executing on rank %d\n", 
+			(int) task->index_point.point_data[0], rank);
 	
 #ifdef GEO
-	handshake.legion_handoff_to_mpi();
+	// handshake.legion_handoff_to_mpi();
 	assert(task->arglen == sizeof(struct daxpy_arg));
 	int err = 0;
 	struct daxpy_arg darg = *((daxpy_arg*)task->args);
@@ -200,31 +212,10 @@ void daxpy_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in daxpy task\n");
 	}
-	handshake.legion_wait_on_mpi();
+	// handshake.legion_wait_on_mpi();
 #else
 	assert(task->arglen == sizeof(double));
 	const double alpha = *((const double*)task->args);
-#ifdef LEAF_COMM
-	// you don't need handshakes for this, but not sure what that means for correctness
-	if (rank == 0)
-	{
-		int r;
-		MPI_Status stat;
-		MPI_Send(&task->index_point.point_data[0], 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
-		MPI_Recv(&r, 1, MPI_INT, 1, 0, MPI_COMM_WORLD, &stat);
-		printf("rank %d task %d received from task %d\n", rank, task->index_point.point_data[0],
-				r);
-	}
-	else
-	{
-		int r;
-		MPI_Status stat;
-		MPI_Recv(&r, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
-		MPI_Send(&task->index_point.point_data[0], 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-		printf("rank %d task %d received from task %d\n", rank, task->index_point.point_data[0],
-				r);
-	}
-#endif
 #endif
 	// const int point = task->index_point.point_data[0];
 
@@ -250,13 +241,13 @@ void daxpy_task(const Task *task,
 	}
 
 #ifdef GEO
-	handshake.legion_handoff_to_mpi();
+	// handshake.legion_handoff_to_mpi();
 	err = geopm_prof_exit(darg.rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in daxpy task\n");
 	}
-	handshake.legion_wait_on_mpi();
+	// handshake.legion_wait_on_mpi();
 #endif
 }
 
@@ -268,7 +259,7 @@ void check_task(const Task *task,
 	assert(task->regions.size() == 2);
 
 #ifdef GEO
-	handshake.legion_handoff_to_mpi();
+	// handshake.legion_handoff_to_mpi();
 	assert(task->arglen == sizeof(struct daxpy_arg));
 	struct daxpy_arg darg = *((daxpy_arg*)task->args);
 	int err = geopm_prof_enter(darg.rid);
@@ -277,7 +268,7 @@ void check_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in check task\n");
 	}
-	handshake.legion_wait_on_mpi();
+	// handshake.legion_wait_on_mpi();
 #else
 	assert(task->arglen == sizeof(double));
 	const double alpha = *((const double*)task->args);
@@ -313,15 +304,16 @@ void check_task(const Task *task,
 		printf("SUCCESS!\n");
 	else
 		printf("FAILURE!\n");
+	fflush(stdout);
 
 #ifdef GEO
-	handshake.legion_handoff_to_mpi();
+	// handshake.legion_handoff_to_mpi();
 	err = geopm_prof_exit(darg.rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in check task\n");
 	}
-	handshake.legion_wait_on_mpi();
+	// handshake.legion_wait_on_mpi();
 #endif
 }
 
@@ -338,7 +330,7 @@ void mpi_interop_task(const Task *task,
 	printf("Hello from Legion MPI-Interop Task %lld (rank %d)\n", task->index_point[0], rank);
 
 #ifdef GEO
-	uint64_t legion_rid;
+	// uint64_t legion_rid;
 	uint64_t init_rid;
 	uint64_t daxpy_rid;
 	uint64_t check_rid;
@@ -382,12 +374,12 @@ void mpi_interop_task(const Task *task,
 	// 	fprintf(stderr, "Geo error in mpi interop task\n");
 	// }
 	// printf("rank %d legion task rid %llu\n", rank, legion_rid);
-	printf("rank %d init task rid %llu\n", rank, init_rid);
-	printf("rank %d daxpy task rid %llu\n", rank, daxpy_rid);
-	printf("rank %d check task rid %llu\n", rank, check_rid);
+	printf("rank %d init task rid %lu\n", rank, init_rid);
+	printf("rank %d daxpy task rid %lu\n", rank, daxpy_rid);
+	printf("rank %d check task rid %lu\n", rank, check_rid);
 #endif
 
-	handshake.legion_wait_on_mpi();
+	// handshake.legion_wait_on_mpi();
 	IndexLauncher init_tl1;
 	IndexLauncher init_tl2;
 	IndexLauncher daxpy_tl;
@@ -409,7 +401,7 @@ void mpi_interop_task(const Task *task,
 
 		const InputArgs &command_args = Runtime::get_input_args();
 		int mult = atoi(command_args.argv[command_args.argc - 1]);
-		int num_elements = 0x1 << 23;
+		int num_elements = 0x1 << 20;
 		int num_subregions = 1;
 		if (mult > 0)
 		{
@@ -513,38 +505,19 @@ void mpi_interop_task(const Task *task,
 		daxpy_tl = daxpy_launcher;
 		// runtime->execute_index_space(ctx, daxpy_tl);
 		// MPI_Send(&daxpy_tl, sizeof(daxpy_tl), MPI_CHAR, 1, 2, MPI_COMM_WORLD);
+
+		IndexLauncher finish_launcher(FINISH_TASK_ID, color_is,
+				TaskArgument(NULL, 0), arg_map);
 		
 		FutureMap fm[total_iterations];
 		for (int i = 0; i < total_iterations; i++)
 		{
-			if (i > 0)
-			{
-#ifdef MID_COMM
-				// printf("rank %d tag %d\n", rank, count);
-				MPI_Send(&count, 1, MPI_INT, 1, count, MPI_COMM_WORLD);
-				// printf("rank %d sent %d\n", rank, count);
-				MPI_Recv(&recount, 1, MPI_INT, 1, count, MPI_COMM_WORLD, &stat);
-				printf("rank %d recv %d\n", rank, recount);
-				count++;
-#endif
-				// handshake.legion_wait_on_mpi();
-				// printf("rank %d itr %d LEGION\n", rank, i);
-			}
 			// printf("rank %d itr %d EXECUTE\n", rank, i);
 			fm[i] = runtime->execute_index_space(ctx, daxpy_tl);
+			// fm[i].wait_all_results();
 			// printf("rank %d itr %d RESULTS\n", rank, i);
 			// sleep(0.2);
 			// printf("rank %d got results\n", rank);
-			if (i < total_iterations - 1 && total_iterations > 1)
-			{
-				// printf("rank %d itr %d MPI\n", rank, i);
-				// handshake.legion_handoff_to_mpi();
-			}
-		}
-
-		for (int i = 0; i < total_iterations; i++)
-		{
-			fm[i].wait_all_results();
 		}
 
 		// printf("rank %d CHECK\n", rank);
@@ -565,45 +538,39 @@ void mpi_interop_task(const Task *task,
 		check_launcher.region_requirements[1].add_field(FID_Z);
 		// runtime->execute_task(ctx, check_launcher);
 		check_tl = check_launcher;
-		runtime->execute_task(ctx, check_tl);
+		Future fcheck = runtime->execute_task(ctx, check_tl);
 		// MPI_Send(&check_tl, sizeof(check_tl), MPI_CHAR, 1, 3, MPI_COMM_WORLD);
 
-		// printf("rank %d freeing\n", rank);
+		printf("rank %d freeing\n", rank);
 		runtime->destroy_logical_region(ctx, input_lr);
 		runtime->destroy_logical_region(ctx, output_lr);
 		runtime->destroy_field_space(ctx, input_fs);
 		runtime->destroy_field_space(ctx, output_fs);
 		runtime->destroy_index_space(ctx, is);
 
+		for (int i = 0; i < total_iterations; i++)
+		{
+			fm[i].wait_all_results();
+		}
+		fcheck.wait();
+
+		runtime->execute_index_space(ctx, finish_launcher);
+
 		// handshake.legion_handoff_to_mpi();
-		// printf("rank %d complete\n", rank);
+		printf("rank %d complete\n", rank);
 	}
 	else
 	{
-#ifdef MID_COMM
-		int count = 0;
-		int recount;
-		MPI_Status stat;
-#endif
-
 		for (int i = 0; i < total_iterations; i++)
 		{
-#ifdef MID_COMM
-			// printf("rank %d tag %d\n", rank, count);
-			MPI_Recv(&recount, 1, MPI_INT, 0, count, MPI_COMM_WORLD, &stat);
-			printf("rank %d recv %d\n", rank, recount);
-			MPI_Send(&count, 1, MPI_INT, 0, count, MPI_COMM_WORLD);
-			// printf("rank %d sent %d\n", rank, count);
-			count++;
-#endif
-
 			// printf("rank %d itr %d LEGION\n", rank, i);
 			// handshake.legion_wait_on_mpi();
 			// printf("rank %d itr %d MPI\n", rank, i);
 			// sleep(0.2);
 			// handshake.legion_handoff_to_mpi();
 		}
-		// printf("rank %d complete\n", rank);
+		printf("rank %d complete\n", rank);
+		// handshake.legion_handoff_to_mpi();
 	}
 #ifdef GEO
 	// err = geopm_prof_exit(legion_rid);
@@ -618,7 +585,6 @@ void top_level_task(const Task *task,
 		const std::vector<PhysicalRegion> &regions,
 		Context ctx, Runtime *runtime)
 {
-	printf("Hello from Legion Top-Level Task\n");
 	// Both the application and Legion mappers have access to
 	// the mappings between MPI Ranks and Legion address spaces
 	// The reverse mapping goes the other way
@@ -633,6 +599,7 @@ void top_level_task(const Task *task,
 	int rank = -1, size = -1;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	printf("Hello from Legion Top-Level Task on rank %d\n", rank);
 	// Do a must epoch launch to align with the number of MPI ranks
 	MustEpochLauncher must_epoch_launcher;
 	Rect<1> launch_bounds(0,size - 1);
@@ -710,10 +677,8 @@ int main(int argc, char **argv)
 	uint64_t power_unit = unit & 0xF;
 	double pu = 1.0 / (0x1 << power_unit);
 	uint64_t seconds_unit_raw = (unit >> 16) & 0x1F;
-	double seconds_unit;
 	double energy_unit;
 	double su = 1.0 / (0x1 << seconds_unit_raw);
-	seconds_unit = su;
 	unsigned eu = (unit >> 8) & 0x1F;
 	energy_unit = 1.0 / (0x1 << eu);
 
@@ -726,7 +691,7 @@ int main(int argc, char **argv)
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s1_begin);
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s2_begin);
 	read_msr_by_coord(0, 0, 0, MSR_PKG_POWER_LIMIT, &rapl_bits);
-	printf("RAPL bits %llx\n", rapl_bits);
+	printf("RAPL bits %lx\n", rapl_bits);
 
 	{
 		TaskVariantRegistrar top_level_registrar(TOP_LEVEL_TASK_ID);
@@ -759,12 +724,18 @@ int main(int argc, char **argv)
 		Runtime::preregister_task_variant<check_task>(check_task_registrar,
 			"Check Task");
 	}
+	{
+		TaskVariantRegistrar finish_task_registrar(FINISH_TASK_ID);
+		finish_task_registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+		Runtime::preregister_task_variant<finish_task>(finish_task_registrar,
+			"Finish Task");
+	}
 	// Create a handshake for passing control between Legion and MPI
 	// Indicate that MPI has initial control and that there is one
 	// participant on each side
-	handshake = Runtime::create_handshake(true/*MPI initial control*/,
+	handshake = Runtime::create_handshake(false/*MPI initial control*/,
 		1/*MPI participants*/,
-		1/*Legion participants*/);
+		8/*Legion participants*/);
 	// Start the Legion runtime in background mode
 	// This call will return immediately
 	Runtime::start(argc, argv, true/*background*/);
@@ -772,58 +743,53 @@ int main(int argc, char **argv)
 	// If you want strict bulk-synchronous execution include
 	// the barriers protected by this variable, otherwise
 	// you can elide them, they are not required for correctness
-	MPI_Barrier(MPI_COMM_WORLD);
-	handshake.mpi_handoff_to_legion();
+	// MPI_Barrier(MPI_COMM_WORLD);
+	//
+	// handshake.mpi_handoff_to_legion();
 
 	// INIT TASK handshakes
 	// there are two init tasks per partition
 	// each init task has two Geo calls with the enter and exit handshakes
 	for (int i = 0; i < partitions; i++)
 	{
-		handshake.mpi_wait_on_legion(); // geo prof begin exit
-		handshake.mpi_handoff_to_legion(); // geo prof begin enter
-		handshake.mpi_wait_on_legion(); // geo prof end exit
-		handshake.mpi_handoff_to_legion(); // geo prof end enter
+		// handshake.mpi_wait_on_legion(); // geo prof begin exit
+		// handshake.mpi_handoff_to_legion(); // geo prof begin enter
+		// handshake.mpi_wait_on_legion(); // geo prof end exit
+		// handshake.mpi_handoff_to_legion(); // geo prof end enter
 	}
 
 	const bool strict_bulk_synchronous_execution = false;
-	for (int i = 0; i < total_iterations; i++)
+	// for (int i = 0; i < total_iterations; i++)
+	for (int i = 0; i < 1; i++)
 	{
-		if (strict_bulk_synchronous_execution)
-		MPI_Barrier(MPI_COMM_WORLD);
-
 		// DAXPY TASK handshakes
 		// one daxpy task executes per iteration
 		// printf("rank %d handshake itr %d\n", rank, i);
-		handshake.mpi_wait_on_legion(); // geo prof begin exit
-		handshake.mpi_handoff_to_legion(); // geo prof begin enter
-		handshake.mpi_wait_on_legion(); // geo prof end exit
-		handshake.mpi_handoff_to_legion(); // geo prof end enter
-
-		// Perform a handoff to Legion, this call is
-		// asynchronous and will return immediately
-		// handshake.mpi_handoff_to_legion();
-		// You can put additional work in here if you like
-		// but it may interfere with Legion work
-
-		// printf("MPI Doing Work on rank %d\n", rank);
-		// Wait for Legion to hand control back,
-		// This call will block until a Legion task
-		// running in this same process hands control back
-		// handshake.mpi_wait_on_legion();
-		if (strict_bulk_synchronous_execution)
-		MPI_Barrier(MPI_COMM_WORLD);
+		// handshake.mpi_wait_on_legion(); // geo prof begin exit
+		if (strict_bulk_synchronous_execution) MPI_Barrier(MPI_COMM_WORLD);
+		printf("MPI rank %d geo enter %d\n", rank, i);
+		// handshake.mpi_handoff_to_legion(); // geo prof begin enter
+		// handshake.mpi_wait_on_legion(); // geo prof end exit
+		if (strict_bulk_synchronous_execution) MPI_Barrier(MPI_COMM_WORLD);
+		printf("MPI rank %d geo exit %i\n", rank, i);
+		fflush(stdout);
+		// handshake.mpi_handoff_to_legion(); // geo prof end enter
 	}
+	printf("MPI rank %d finished daxpy\n", rank);
+	fflush(stdout);
 
 	// CHECK TASK handshakes
 	// rank 0 is the only rank that checks
 	if (rank == 0)
 	{
-		handshake.mpi_wait_on_legion(); // geo prof begin exit
-		handshake.mpi_handoff_to_legion(); // geo prof begin enter
-		handshake.mpi_wait_on_legion(); // geo prof end exit
-		handshake.mpi_handoff_to_legion(); // geo prof end enter
+		// handshake.mpi_wait_on_legion(); // geo prof begin exit
+		// handshake.mpi_handoff_to_legion(); // geo prof begin enter
+		// handshake.mpi_wait_on_legion(); // geo prof end exit
+		// handshake.mpi_handoff_to_legion(); // geo prof end enter
 	}
+	// handshake.mpi_wait_on_legion(); // geo prof end exit
+	printf("MPI rank %d at barrier\n", rank);
+	MPI_Barrier(MPI_COMM_WORLD);
 
 	printf("MPI rank %d finished\n", rank);
 	// When you're done wait for the Legion runtime to shutdown
@@ -846,7 +812,7 @@ int main(int argc, char **argv)
 	double pows1 = (double) diffs1 * energy_unit / time;
 	double pows2 = (double) diffs2 * energy_unit / time;
 	printf("MPI rank %d power s1: %lf s2: %lf\n", rank, pows1, pows2);
-	printf("RAPL bits %llx\n", rapl_bits);
+	printf("RAPL bits %lx\n", rapl_bits);
 
 	uint64_t aperf_end, mperf_end;
 	read_msr_by_coord(0, 0, 0, MSR_IA32_APERF, &aperf_end);
