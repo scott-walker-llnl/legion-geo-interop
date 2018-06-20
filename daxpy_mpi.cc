@@ -77,7 +77,7 @@ MPILegionHandshake handshake;
 // this example, but you can easily configure it
 // from command line arguments which get passed 
 // to both MPI and Legion
-const int total_iterations = 30;
+const int total_iterations = 5;
 
 void set_rapl(unsigned sec, double watts, double pu, double su, unsigned affinity)
 {
@@ -219,16 +219,16 @@ void mpi_interop_task(const Task *task,
 	TaskLauncher check_tl;
 	if (rank == 0)
 	{
-		// printf("rank %d tag %d\n", rank, 0);
-		// int count = 0;
-		// int recount;
-		// MPI_Status stat;
-		// printf("rank %d tag %d\n", rank, count);
-		// MPI_Send(&count, 1, MPI_INT, 1, count, MPI_COMM_WORLD);
-		// printf("rank %d sent %d\n", rank, count);
-		// MPI_Recv(&recount, 1, MPI_INT, 1, count, MPI_COMM_WORLD, &stat);
-		// printf("rank %d recv %d\n", rank, recount);
-		// count++;
+		printf("rank %d tag %d\n", rank, 0);
+		int count = 0;
+		int recount;
+		MPI_Status stat;
+		printf("rank %d tag %d\n", rank, count);
+		MPI_Send(&count, 1, MPI_INT, 1, count, MPI_COMM_WORLD);
+		printf("rank %d sent %d\n", rank, count);
+		MPI_Recv(&recount, 1, MPI_INT, 1, count, MPI_COMM_WORLD, &stat);
+		printf("rank %d recv %d\n", rank, recount);
+		count++;
 		handshake.legion_wait_on_mpi();
 
 		const InputArgs &command_args = Runtime::get_input_args();
@@ -304,8 +304,7 @@ void mpi_interop_task(const Task *task,
 		init_launcher.region_requirements[0].add_field(FID_Y);
 		init_tl2 = init_launcher;
 		init_epoch_launcher2.add_index_task(init_tl2);
-		runtime->execute_index_space(ctx, init_tl2);
-
+		// runtime->execute_index_space(ctx, init_tl2);
 		// runtime->execute_must_epoch(ctx, init_epoch_launcher1);
 
 		// handshake.legion_handoff_to_mpi();
@@ -316,6 +315,7 @@ void mpi_interop_task(const Task *task,
 		// printf("rank %d recv %d\n", rank, recount);
 		// count++;
 		// handshake.legion_wait_on_mpi();
+		runtime->execute_index_space(ctx, init_tl2);
 		// runtime->execute_must_epoch(ctx, init_epoch_launcher2);
 
 		const double alpha = drand48();
@@ -338,15 +338,16 @@ void mpi_interop_task(const Task *task,
 		FutureMap fm;
 		for (int i = 0; i < total_iterations; i++)
 		{
-			// handshake.legion_handoff_to_mpi();
-			// printf("rank %d tag %d\n", rank, count);
-			// MPI_Send(&count, 1, MPI_INT, 1, count, MPI_COMM_WORLD);
-			// printf("rank %d sent %d\n", rank, count);
-			// MPI_Recv(&recount, 1, MPI_INT, 1, count, MPI_COMM_WORLD, &stat);
-			// printf("rank %d recv %d\n", rank, recount);
-			// count++;
-			// handshake.legion_wait_on_mpi();
+			handshake.legion_handoff_to_mpi();
+			printf("rank %d tag %d\n", rank, count);
+			MPI_Send(&count, 1, MPI_INT, 1, count, MPI_COMM_WORLD);
+			printf("rank %d sent %d\n", rank, count);
+			MPI_Recv(&recount, 1, MPI_INT, 1, count, MPI_COMM_WORLD, &stat);
+			printf("rank %d recv %d\n", rank, recount);
+			count++;
+			handshake.legion_wait_on_mpi();
 			// fm = runtime->execute_must_epoch(ctx, daxpy_epoch_launcher);
+			// fm[i] = runtime->execute_index_space(ctx, daxpy_tl);
 			fm = runtime->execute_index_space(ctx, daxpy_tl);
 			fm.wait_all_results();
 		}
@@ -356,7 +357,7 @@ void mpi_interop_task(const Task *task,
 		// 	fm[i].wait_all_results();
 		// }
 
-		// printf("rank %d CHECK\n", rank);
+		printf("rank %d CHECK\n", rank);
 
 		TaskLauncher check_launcher(CHECK_TASK_ID, 
 				TaskArgument(&alpha, sizeof(double)));
@@ -383,18 +384,18 @@ void mpi_interop_task(const Task *task,
 		int count = 0;
 		int recount;
 		MPI_Status stat;
-		handshake.legion_wait_on_mpi();
-		// send/recv for first init task
-		// printf("rank %d tag %d\n", rank, count);
-		// MPI_Recv(&recount, 1, MPI_INT, 0, count, MPI_COMM_WORLD, &stat);
-		// printf("rank %d recv %d\n", rank, recount);
-		// MPI_Send(&count, 1, MPI_INT, 0, count, MPI_COMM_WORLD);
-		// printf("rank %d sent %d\n", rank, count);
-		// count++;
 		// handshake.legion_wait_on_mpi();
+		// send/recv for first init task
+		printf("rank %d tag %d\n", rank, count);
+		MPI_Recv(&recount, 1, MPI_INT, 0, count, MPI_COMM_WORLD, &stat);
+		printf("rank %d recv %d\n", rank, recount);
+		MPI_Send(&count, 1, MPI_INT, 0, count, MPI_COMM_WORLD);
+		printf("rank %d sent %d\n", rank, count);
+		count++;
+		handshake.legion_wait_on_mpi();
 		// handshake.legion_handoff_to_mpi();
 
-		// send/recv for second init task
+		// // send/recv for second init task
 		// printf("rank %d tag %d\n", rank, count);
 		// MPI_Recv(&recount, 1, MPI_INT, 0, count, MPI_COMM_WORLD, &stat);
 		// printf("rank %d recv %d\n", rank, recount);
@@ -406,23 +407,15 @@ void mpi_interop_task(const Task *task,
         //
 		for (int i = 0; i < total_iterations; i++)
 		{
-			// printf("rank %d tag %d\n", rank, count);
-			// MPI_Recv(&recount, 1, MPI_INT, 0, count, MPI_COMM_WORLD, &stat);
-			// printf("rank %d recv %d\n", rank, recount);
-			// MPI_Send(&count, 1, MPI_INT, 0, count, MPI_COMM_WORLD);
-			// printf("rank %d sent %d\n", rank, count);
-			// count++;
-			// handshake.legion_wait_on_mpi();
-			// handshake.legion_handoff_to_mpi();
-			for (long i = 0; i < 1000000; i++)
-			{
-				if (i % (i * 2) == 0)
-				{
-					printf("doop %ld\n", i);
-				}
-			}
+			handshake.legion_handoff_to_mpi();
+			printf("rank %d tag %d\n", rank, count);
+			MPI_Recv(&recount, 1, MPI_INT, 0, count, MPI_COMM_WORLD, &stat);
+			printf("rank %d recv %d\n", rank, recount);
+			MPI_Send(&count, 1, MPI_INT, 0, count, MPI_COMM_WORLD);
+			printf("rank %d sent %d\n", rank, count);
+			count++;
+			handshake.legion_wait_on_mpi();
 		}
-		handshake.legion_handoff_to_mpi();
 	}
 }
 
@@ -562,7 +555,7 @@ int main(int argc, char **argv)
 	// participant on each side
 	handshake = Runtime::create_handshake(true/*MPI initial control*/,
 		1/*MPI participants*/,
-		1/*Legion participants*/);
+		4/*Legion participants*/);
 	// Start the Legion runtime in background mode
 	// This call will return immediately
 	Runtime::start(argc, argv, true/*background*/);
@@ -570,40 +563,37 @@ int main(int argc, char **argv)
 	// If you want strict bulk-synchronous execution include
 	// the barriers protected by this variable, otherwise
 	// you can elide them, they are not required for correctness
+	printf("mpi rank %d begin\n", rank);
+	handshake.mpi_handoff_to_legion();
 	const bool strict_bulk_synchronous_execution = false;
-	if (rank == 0)
+	for (int i = 0; i < total_iterations; i++)
 	{
-		for (int i = 0; i < total_iterations; i++)
-		{
-			if (strict_bulk_synchronous_execution)
-			MPI_Barrier(MPI_COMM_WORLD);
+		if (strict_bulk_synchronous_execution)
+		MPI_Barrier(MPI_COMM_WORLD);
 
-			// DAXPY TASK handshakes
-			// one daxpy task executes per iteration
-			printf("rank %d handshake itr %d\n", rank, i);
+		// DAXPY TASK handshakes
+		// one daxpy task executes per iteration
+		printf("rank %d handshake itr %d\n", rank, i);
 
-			// Perform a handoff to Legion, this call is
-			// asynchronous and will return immediately
-			handshake.mpi_handoff_to_legion();
-			// You can put additional work in here if you like
-			// but it may interfere with Legion work
-
-			// printf("MPI Doing Work on rank %d\n", rank);
-			// Wait for Legion to hand control back,
-			// This call will block until a Legion task
-			// running in this same process hands control back
-			handshake.mpi_wait_on_legion();
-			if (strict_bulk_synchronous_execution)
-			MPI_Barrier(MPI_COMM_WORLD);
-		}
-	}
-	else
-	{
-		handshake.mpi_handoff_to_legion();
+		// Perform a handoff to Legion, this call is
+		// asynchronous and will return immediately
+		// You can put additional work in here if you like
+		// but it may interfere with Legion work
 		handshake.mpi_wait_on_legion();
+
+		// printf("MPI Doing Work on rank %d\n", rank);
+		// Wait for Legion to hand control back,
+		// This call will block until a Legion task
+		// running in this same process hands control back
+		if (i < total_iterations - 1)
+		{
+			handshake.mpi_handoff_to_legion();
+		}
+		if (strict_bulk_synchronous_execution)
+		MPI_Barrier(MPI_COMM_WORLD);
 	}
-	MPI_Barrier(MPI_COMM_WORLD);
 	printf("MPI rank %d finished\n", rank);
+	MPI_Barrier(MPI_COMM_WORLD);
 	// When you're done wait for the Legion runtime to shutdown
 	Runtime::wait_for_shutdown();
 
