@@ -54,6 +54,20 @@
 #define POW_IMBALANCE 0.5
 typedef double vecd4 __attribute__((vector_size (32)));
 
+typedef FieldAccessor<READ_ONLY, float, 1, coord_t, 
+			Realm::AffineAccessor<float, 1, coord_t>> AccessorROfloat;
+typedef FieldAccessor<WRITE_DISCARD, float, 1, coord_t, 
+			Realm::AffineAccessor<float, 1, coord_t>> AccessorWDfloat;
+typedef FieldAccessor<WRITE_ONLY, float, 1, coord_t, 
+			Realm::AffineAccessor<float, 1, coord_t>> AccessorWOfloat;
+
+typedef FieldAccessor<READ_ONLY, Point<1>, 1, coord_t, 
+			Realm::AffineAccessor<Point<1>, 1, coord_t>> AccessorROpoint;
+typedef FieldAccessor<WRITE_DISCARD, Point<1>, 1, coord_t, 
+			Realm::AffineAccessor<Point<1>, 1, coord_t>> AccessorWDpoint;
+typedef FieldAccessor<WRITE_ONLY, Point<1>, 1, coord_t, 
+			Realm::AffineAccessor<Point<1>, 1, coord_t>> AccessorWOpoint;
+
 using namespace Legion;
 
 enum TaskID
@@ -219,9 +233,15 @@ void daxpy_task(const Task *task,
 #endif
 	// const int point = task->index_point.point_data[0];
 
-	const FieldAccessor<READ_ONLY,double,1> acc_x(regions[0], FID_X);
-	const FieldAccessor<READ_ONLY,double,1> acc_y(regions[0], FID_Y);
-	const FieldAccessor<WRITE_DISCARD,double,1> acc_z(regions[1], FID_Z);
+	__m256 temp_v[8];
+	double vec_x[4];
+	double vec_y[4];
+	const AccessorROpoint point_x(regions[0], FID_X);
+	const AccessorROpoint point_y(regions[0], FID_Y);
+	const AccessorWDpoint point_z(regions[1], FID_Z);
+	// const FieldAccessor<READ_ONLY,double,1> acc_x(regions[0], FID_X);
+	// const FieldAccessor<READ_ONLY,double,1> acc_y(regions[0], FID_Y);
+	// const FieldAccessor<WRITE_DISCARD,double,1> acc_z(regions[1], FID_Z);
 	// printf("Running daxpy computation with alpha %.8g for point %d...\n", 
 			// alpha, point);
 
@@ -229,16 +249,24 @@ void daxpy_task(const Task *task,
 			task->regions[0].region.get_index_space());
 	for (PointInRectIterator<1> pir(rect); pir(); pir++)
 	{
-		// double a = acc_x[*pir];
-		// double b = acc_y[*pir];
-		// double c;
-		// for (int i = 0; i < NITER; i++)
-		// {
-		// 	c = c + alpha * a + alpha * b + b * a;
-		// }
-		// acc_z[*pir] = c;
-		acc_z[*pir] = alpha * acc_x[*pir] + acc_y[*pir];
+		Point<1> ptr = pir;
+		vec_x[0] = jjj
 	}
+
+	// Rect<1> rect = runtime->get_index_space_domain(ctx,
+	// 		task->regions[0].region.get_index_space());
+	// for (PointInRectIterator<1> pir(rect); pir(); pir++)
+	// {
+	// 	// double a = acc_x[*pir];
+	// 	// double b = acc_y[*pir];
+	// 	// double c;
+	// 	// for (int i = 0; i < NITER; i++)
+	// 	// {
+	// 	// 	c = c + alpha * a + alpha * b + b * a;
+	// 	// }
+	// 	// acc_z[*pir] = c;
+	// 	acc_z[*pir] = alpha * acc_x[*pir] + acc_y[*pir];
+	// }
 
 #ifdef GEO
 	// handshake.legion_handoff_to_mpi();
@@ -689,7 +717,7 @@ int main(int argc, char **argv)
 	uint64_t energy_s1_begin;
 	uint64_t energy_s2_begin;
 	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s1_begin);
-	read_msr_by_coord(0, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s2_begin);
+	read_msr_by_coord(1, 0, 0, MSR_PKG_ENERGY_STATUS, &energy_s2_begin);
 	read_msr_by_coord(0, 0, 0, MSR_PKG_POWER_LIMIT, &rapl_bits);
 	printf("RAPL bits %lx\n", rapl_bits);
 
@@ -816,7 +844,7 @@ int main(int argc, char **argv)
 
 	uint64_t aperf_end, mperf_end;
 	read_msr_by_coord(0, 0, 0, MSR_IA32_APERF, &aperf_end);
-	read_msr_by_coord(0, 0, 0, MSR_IA32_MPERF, &mperf_end);
+	read_msr_by_coord(1, 0, 0, MSR_IA32_MPERF, &mperf_end);
 	
 	printf("MPI rank %d time %lf\n", rank, time);
 	printf("MPI rank %d freq %lf\n", rank, (double) (aperf_end - aperf_begin) / (double) (mperf_end - mperf_begin) * 2.4);
