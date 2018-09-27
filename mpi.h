@@ -1,3 +1,4 @@
+// this is used for checking Legion+MPI+GeoPM interactions
 #include <mpi.h>
 #include <cstdio>
 
