@@ -202,8 +202,10 @@ void init_field_task(const Task *task,
 	// handshake.legion_wait_on_mpi();
 #endif
 	gettimeofday(&t2, NULL);
+#ifdef VERBOSE
 	printf("init task %d execution time: %lf\n", point, (t2.tv_sec - t1.tv_sec) + 
 			(t2.tv_usec - t1.tv_usec) / 1000000.0);
+#endif
 }
 
 // this daxpy task does 100 iterations using vector instructions
@@ -229,6 +231,7 @@ void daxpy_task_vec(const Task *task,
 	struct daxpy_arg *darg = (daxpy_arg*)task->args;
 	const double alpha = darg->alpha;
 	const uint64_t rid = darg->rid; 
+	// printf("Task %d rid %lu\n", (int) task->index_point.point_data[0], rid);
 	err = geopm_prof_enter(rid);
 	if (err)
 	{
@@ -287,13 +290,15 @@ void daxpy_task_vec(const Task *task,
 	err = geopm_prof_exit(rid);
 	if (err)
 	{
-		fprintf(stderr, "Geo error (exit) in daxpy task vec\n");
+		fprintf(stderr, "Geo error (exit) in daxpy task vec rid %lu\n", rid);
 	}
 	// handshake.legion_wait_on_mpi();
 #endif
 	gettimeofday(&t2, NULL);
+#ifdef VERBOSE
 	printf("daxpy task AVX #%d <node %d> execution time: %lf\n", point, rank, (t2.tv_sec - t1.tv_sec) + 
 			(t2.tv_usec - t1.tv_usec) / 1000000.0);
+#endif
 }
 
 // this daxpy task does 1000 iterations with sleeps inserted
@@ -319,6 +324,7 @@ void daxpy_task_sleep(const Task *task,
 	struct daxpy_arg *darg = (daxpy_arg*)task->args;
 	const double alpha = darg->alpha;
 	const uint64_t rid = darg->rid;
+	// printf("Task %d rid %lu\n", (int) task->index_point.point_data[0], rid);
 	err = geopm_prof_enter(rid);
 	if (err)
 	{
@@ -358,13 +364,15 @@ void daxpy_task_sleep(const Task *task,
 	err = geopm_prof_exit(rid);
 	if (err)
 	{
-		fprintf(stderr, "Geo error (exit) in daxpy task sleep\n");
+		fprintf(stderr, "Geo error (exit) in daxpy task sleep rid %lu\n", rid);
 	}
 	// handshake.legion_wait_on_mpi();
 #endif
 	gettimeofday(&t2, NULL);
+#ifdef VERBOSE
 	printf("daxpy task IO #%d <node %d> execution time: %lf\n", point, rank, (t2.tv_sec - t1.tv_sec) + 
 			(t2.tv_usec - t1.tv_usec) / 1000000.0);
+#endif
 }
 
 void check_task(const Task *task,
@@ -440,8 +448,10 @@ void check_task(const Task *task,
 	// handshake.legion_wait_on_mpi();
 #endif
 	gettimeofday(&t2, NULL);
+#ifdef VERBOSE
 	printf("check task execution time: %lf\n", (t2.tv_sec - t1.tv_sec) + 
 			(t2.tv_usec - t1.tv_usec) / 1000000.0);
+#endif
 }
 
 void mpi_interop_task(const Task *task, 
@@ -468,16 +478,16 @@ void mpi_interop_task(const Task *task,
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
 	}
-	char daxpy_str[TASK_NAME_SIZE];
-	snprintf(daxpy_str, TASK_NAME_SIZE, "daxpy_child_task");
-	err = geopm_prof_region(daxpy_str, GEOPM_REGION_HINT_COMPUTE, &daxpy_vec_rid);
+	char daxpy_vec_str[TASK_NAME_SIZE];
+	snprintf(daxpy_vec_str, TASK_NAME_SIZE, "daxpy_child_task_vec");
+	err = geopm_prof_region(daxpy_vec_str, GEOPM_REGION_HINT_COMPUTE, &daxpy_vec_rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
 	}
-	char daxpy10_str[TASK_NAME_SIZE];
-	snprintf(daxpy10_str, TASK_NAME_SIZE, "daxpy10_child_task");
-	err = geopm_prof_region(daxpy10_str, GEOPM_REGION_HINT_IO, &daxpy_sleep_rid);
+	char daxpy_sleep_str[TASK_NAME_SIZE];
+	snprintf(daxpy_sleep_str, TASK_NAME_SIZE, "daxpy_child_task_sleep");
+	err = geopm_prof_region(daxpy_sleep_str, GEOPM_REGION_HINT_IO, &daxpy_sleep_rid);
 	if (err)
 	{
 		fprintf(stderr, "Geo error in mpi interop task\n");
@@ -509,9 +519,10 @@ void mpi_interop_task(const Task *task,
 	// 	fprintf(stderr, "Geo error in mpi interop task\n");
 	// }
 	// printf("rank %d legion task rid %llu\n", rank, legion_rid);
-	// printf("rank %d init task rid %lu\n", rank, init_rid);
-	// printf("rank %d daxpy task rid %lu\n", rank, daxpy_rid);
-	// printf("rank %d check task rid %lu\n", rank, check_rid);
+	printf("rank %d init task rid %lu\n", rank, init_rid);
+	printf("rank %d daxpy_vec task rid %lu\n", rank, daxpy_vec_rid);
+	printf("rank %d daxpy_sleep task rid %lu\n", rank, daxpy_sleep_rid);
+	printf("rank %d check task rid %lu\n", rank, check_rid);
 #endif
 
 	// handshake.legion_wait_on_mpi();
@@ -536,7 +547,7 @@ void mpi_interop_task(const Task *task,
 
 		const InputArgs &command_args = Runtime::get_input_args();
 		int mult = atoi(command_args.argv[2]);
-		int num_elements = 0x1 << 24;
+		int num_elements = 0x1 << 26;
 		int num_subregions = 1;
 		if (mult > 0)
 		{
@@ -620,14 +631,15 @@ void mpi_interop_task(const Task *task,
 
 		const double alpha = drand48();
 #ifdef GEO
-		struct daxpy_arg darg;
-		darg.alpha = alpha;
-		darg.rid = daxpy_vec_rid;
+		struct daxpy_arg darg_vec, darg_sleep, darg_check;
+		darg_vec.alpha = alpha;
+		darg_vec.rid = daxpy_vec_rid;
 		IndexLauncher daxpy_launcher_vec(DAXPY_TASK_ID_VEC, color_is,
-				TaskArgument(&darg, sizeof(struct daxpy_arg)), arg_map);
-		darg.rid = daxpy_sleep_rid;
+				TaskArgument(&darg_vec, sizeof(struct daxpy_arg)), arg_map);
+		darg_sleep.alpha = alpha;
+		darg_sleep.rid = daxpy_sleep_rid;
 		IndexLauncher daxpy_launcher_sleep(DAXPY_TASK_ID_SLEEP, color_is,
-				TaskArgument(&darg, sizeof(struct daxpy_arg)), arg_map);
+				TaskArgument(&darg_sleep, sizeof(struct daxpy_arg)), arg_map);
 #else
 		IndexLauncher daxpy_launcher_vec(DAXPY_TASK_ID_VEC, color_is,
 				TaskArgument(&alpha, sizeof(double)), arg_map);
@@ -678,9 +690,10 @@ void mpi_interop_task(const Task *task,
 
 		// printf("rank %d CHECK\n", rank);
 #ifdef GEO
-		darg.rid = check_rid;
+		darg_check.alpha = alpha;
+		darg_check.rid = check_rid;
 		TaskLauncher check_launcher(CHECK_TASK_ID, 
-				TaskArgument(&darg, sizeof(struct daxpy_arg)));
+				TaskArgument(&darg_check, sizeof(struct daxpy_arg)));
 #else
 		TaskLauncher check_launcher(CHECK_TASK_ID, 
 				TaskArgument(&alpha, sizeof(double)));
@@ -795,8 +808,8 @@ int main(int argc, char **argv)
 	{
 		printf("ERROR: daxpy_mpi <powlim> <partition multiplier>");
 	}
-	double limit = atof(argv[1]);
 
+	double limit = atof(argv[1]);
 	int rank = -1, size = -1;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -817,16 +830,7 @@ int main(int argc, char **argv)
 	struct timeval t1;
 	gettimeofday(&t1, NULL);
 
-	int partitions = 1;
-	int mult = atoi(argv[2]);
-	if ( mult > 0)
-	{
-		partitions = size * mult;
-	}
-	else if (mult < 0)
-	{
-		partitions = size / (atoi(argv[2]) * -1);
-	}
+	int partitions = atoi(argv[2]);
 	printf("There will be %d partitions\n", partitions);
 
 	uint64_t rapl_bits;

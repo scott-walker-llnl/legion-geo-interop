@@ -9,9 +9,10 @@ Note: You should use the same compiler for all tools in the chain, if you compil
 1. Setup Legion for MPI interopability by installing GASNET. This is unfortunately not straightforward as GASNET setup is different for most systems and requires Legion specific setup. See the Legion GASNET instructions [here](http://legion.stanford.edu/gasnet/ "GASNET instructions").
 2. Install Legion using these [instructions](http://legion.stanford.edu/starting/ "Legion Installation").
 3. Install GeoPM following the instructions in the [repository](https://github.com/geopm/geopm "GeoPM").
-4. Check the paths and configuration in ./tutorial_env.sh, you may need to change the job launcher or python paths for your system.
-5. Change configuration in ./var.sh to reflect your local system. Depending on the job launcher used you may need to change the GEOPM_RM variable, see GeoPM documentation for details. LG_RT_DIR needs to point to xxx/legion/runtime. Change the GASNET variable to point to the install location of GASNET.
-6. Change the variables in ./run.sh to reflect your local system. If you want to use a different GeoPM power configuration json file then you can set that here. GeoPM must be run in "process" mode.
+4. Install [Libmsr](https://github.com/LLNL/libmsr "Libmsr"), which is used to verify GeoPM results. This requires either root or [msr_safe](https://github.com/LLNL/msr-safe "msr-safe").
+5. Check the paths and configuration in ./tutorial_env.sh, you may need to change the job launcher or python paths for your system.
+6. Change configuration in ./var.sh to reflect your local system. Depending on the job launcher used you may need to change the GEOPM_RM variable, see GeoPM documentation for details. LG_RT_DIR needs to point to xxx/legion/runtime. Change the GASNET variable to point to the install location of GASNET.
+7. Change the variables in ./run.sh to reflect your local system. If you want to use a different GeoPM power configuration json file then you can set that here. GeoPM must be run in "process" mode.
 
 ## Run Directions
 There are many nuances to building and executing a Legion+GeoPM program so I will show an example command and explain each part.
@@ -39,12 +40,12 @@ Step by step explanation:
 * --mpibind=off: Legion is incompatible with mpibind so it must be disabled.
 * --cpu_bind: GeoPM requires binding but mpibind's automatic binding interferes with Legion, so we must manually specify the binding of each MPI process with cpubind.
 * v,mask_cpu:0x2,0xfffffc:  The first mask "0x2" is used for the first process (GeoPM), which we want to be bound to a single CPU. The second mask "0xfffffc" is for the second process (Legion) which we want to use cores 2-23. A single core "0x1" is left unbound for the OS which is recommended.
-* ./daxpy_mpi 115.0 16: The daxpy program takes 2 arguments, ./daxpy_mpi <power limit> <data partition multiplier>. The first can be set to the TDP of the processor if you want GeoPM to control the power limit. The second increases how many tiles the data is partitioned into for control of Legion task granularity. 
+* ./daxpy_mpi 115.0 16: The daxpy program takes two arguments. The first will let you set a RAPL limit if GeoPM is disabled (via a macro). The second argument controls task granularity. You want this to be large enough to saturate the cores with tasks or higher.
 -ll:cpu 21 -ll:csize 8000: The arguments beginning with "-ll" are commands for the Legion runtime. "-ll:cpu" is used to tell the runtime how many cores it can use. Note that this is one fewer than the cores given in the cpubind mask because one core is reserved for the Legion runtime, the others can execute Legion tasks. "-ll:csize" is used to tell the Legion runtime how much memory it will require, 8000 should work for the example unmodified.
 
 ## Comon Problems
 	* reservation ('xxx') cannot be satisfied
-		* the "-ll:cpu" argument is too large
+		* the "-ll:cpu" argument is too large or too small
 		* the cpubind mask is wrong
 		* mpibind is not off
 		* some thread binding model is enabled
