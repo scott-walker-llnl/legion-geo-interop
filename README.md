@@ -1,4 +1,4 @@
-# Legion and GeoPM Iterop
+# Legion and GeoPM Interop
 This is part of the ECP power steering project. Intel's GeoPM power manager is designed to work with multi-process or multi-threaded programs, but Legion is a task based model. Legion and GeoPM are able to interoperate in certain configurations without significant changes to the Legion code. 
 
 The standard setup for GeoPM is to create one process per compute node and then insert Geo markup calls inside the program to monitor. These markup calls use shared memory to communicate with the Geo process. From experimentation as well as discussions with the Legion developers, we were able to determine that it is safe to use shared memory communication without using Legion's "handshake" mechanism.
@@ -43,7 +43,7 @@ Step by step explanation:
 * ./daxpy_mpi 115.0 16: The daxpy program takes two arguments. The first will let you set a RAPL limit if GeoPM is disabled (via a macro). The second argument controls task granularity. You want this to be large enough to saturate the cores with tasks or higher.
 -ll:cpu 21 -ll:csize 8000: The arguments beginning with "-ll" are commands for the Legion runtime. "-ll:cpu" is used to tell the runtime how many cores it can use. Note that this is one fewer than the cores given in the cpubind mask because one core is reserved for the Legion runtime, the others can execute Legion tasks. "-ll:csize" is used to tell the Legion runtime how much memory it will require, 8000 should work for the example unmodified.
 
-## Comon Problems
+## Common Problems
 	* reservation ('xxx') cannot be satisfied
 		* the "-ll:cpu" argument is too large or too small
 		* the cpubind mask is wrong
